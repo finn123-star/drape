@@ -1,26 +1,39 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-background: oklch(0.08 0 0);
+    --color-foreground: oklch(0.93 0.01 80);
+    --color-primary: oklch(0.93 0.22 120);
+    --color-primary-foreground: oklch(0.08 0 0);
+    --color-secondary: oklch(0.14 0 0);
+    --color-secondary-foreground: oklch(0.93 0.01 80);
+    --color-muted: oklch(0.14 0 0);
+    --color-muted-foreground: oklch(0.5 0 0);
+    --color-accent: oklch(0.93 0.22 120);
+    --color-accent-foreground: oklch(0.08 0 0);
+    --color-destructive: oklch(0.5 0.2 30);
+    --color-border: oklch(0.2 0 0);
+    --color-input: oklch(0.2 0 0);
+    --color-ring: oklch(0.93 0.22 120);
+    --radius: 0.25rem;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('https://fonts.gstatic.com/s/fraunces/v24/6NUu8FyLNQOQZAnv9ZwNjucMHVn85Ni7emAe9bKY.woff2') format('woff2');
 }
