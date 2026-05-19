@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Higher / Lower — Deutscher Rap
 
-## Getting Started
+Weißt du, welcher deutsche Rap-Song mehr Spotify-Streams hat?
 
-First, run the development server:
+## Das Spiel
+
+Unter `/game` findest du das Higher/Lower-Spiel. Zwei Songs werden nebeneinander angezeigt — du siehst die Stream-Zahl des linken Songs und musst raten, ob der rechte Song mehr oder weniger Streams hat. Bei jeder richtigen Antwort steigt dein Score. Ein Fehler und das Spiel ist vorbei.
+
+## Lokal starten
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Dann öffne [http://localhost:3000/game](http://localhost:3000/game).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment auf Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Repository auf GitHub pushen
+2. [vercel.com/new](https://vercel.com/new) öffnen und das Repo importieren
+3. Framework: **Next.js** (wird automatisch erkannt)
+4. Keine weiteren Umgebungsvariablen nötig für das Spiel
+5. **Deploy** klicken — fertig
 
-## Learn More
+Das Spiel ist danach unter `https://deine-domain.vercel.app/game` erreichbar.
 
-To learn more about Next.js, take a look at the following resources:
+## Song-Daten anpassen
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Die Song-Daten liegen in `data/songs.json`. Felder:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Feld      | Typ    | Beschreibung                   |
+|-----------|--------|--------------------------------|
+| `id`      | number | Eindeutige ID                  |
+| `artist`  | string | Künstlername                   |
+| `title`   | string | Songtitel                      |
+| `streams` | number | Spotify-Streams (reine Zahl)   |
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS v4
+- Framer Motion (Animationen)
