@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tracker">
+<title>Productivity Tracker</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=JetBrains+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        bg: '#0E0D0B',
+        surface: '#1A1916',
+        border: '#2A2825',
+        amber: '#F5A623',
+        muted: '#6B6860',
+        text: '#E8E5DF',
+      },
+      fontFamily: {
+        serif: ['"Instrument Serif"', 'serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+        sans: ['"IBM Plex Sans"', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0E0D0B; color: #E8E5DF; font-family: 'IBM Plex Sans', sans-serif; min-height: 100dvh; }
+  .font-serif { font-family: 'Instrument Serif', serif; font-style: italic; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type=number] { -moz-appearance: textfield; }
+  .tab-active { color: #F5A623; border-bottom: 2px solid #F5A623; }
+  .tab-inactive { color: #6B6860; border-bottom: 2px solid transparent; }
+  .bar-day:hover .bar-tooltip { display: block; }
+  .bar-tooltip { display: none; }
+  textarea { resize: none; }
+  .score-ring { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #0E0D0B; }
+  ::-webkit-scrollbar-thumb { background: #2A2825; border-radius: 2px; }
+</style>
+</head>
+<body class="font-sans">
+
+<div id="app" class="max-w-lg mx-auto px-4 pb-24 pt-safe">
+
+  <!-- Header -->
+  <div class="pt-6 pb-4">
+    <div id="yesterdayBanner" class="hidden mb-4 px-4 py-3 rounded border border-amber/30 bg-amber/5 text-sm font-sans text-amber flex items-center justify-between">
+      <span>Gestern offen — jetzt nachtragen?</span>
+      <button onclick="switchToYesterday()" class="underline underline-offset-2 text-amber font-medium ml-2">Nachtragen</button>
+    </div>
+    <div class="flex items-start justify-between">
+      <div>
+        <p id="dateDisplay" class="font-mono text-xs text-muted tracking-widest uppercase"></p>
+        <h1 class="font-serif text-3xl text-text mt-1 leading-tight">Tageslog</h1>
+      </div>
+      <div id="streakBadge" class="hidden text-right">
+        <p class="font-mono text-amber text-2xl font-bold leading-none" id="streakCount">0</p>
+        <p class="font-sans text-xs text-muted mt-0.5">Streak</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex border-b border-border mb-6">
+    <button onclick="setTab('today')" id="tab-today" class="tab-active pb-2 pr-6 text-sm font-medium font-sans transition-colors">Heute</button>
+    <button onclick="setTab('history')" id="tab-history" class="tab-inactive pb-2 pr-6 text-sm font-medium font-sans transition-colors">Verlauf</button>
+    <button onclick="setTab('settings')" id="tab-settings" class="tab-inactive pb-2 pr-6 text-sm font-medium font-sans transition-colors">Einstellungen</button>
+  </div>
+
+  <!-- TODAY TAB -->
+  <div id="view-today" class="fade-in">
+
+    <!-- Date nav -->
+    <div class="flex items-center justify-between mb-5">
+      <button onclick="navDay(-1)" class="font-mono text-muted hover:text-text text-lg px-2 py-1">←</button>
+      <span id="activeDate" class="font-mono text-sm text-muted tracking-wider"></span>
+      <button onclick="navDay(1)" id="nextDayBtn" class="font-mono text-muted hover:text-text text-lg px-2 py-1 disabled:opacity-30" disabled>→</button>
+    </div>
+
+    <!-- Gym Toggle -->
+    <div class="mb-5 p-4 rounded bg-surface border border-border flex items-center justify-between">
+      <div>
+        <p class="font-sans text-sm font-medium text-text">Gym</p>
+        <p class="font-sans text-xs text-muted mt-0.5">Training absolviert?</p>
+      </div>
+      <button id="gymToggle" onclick="toggleGym()" class="w-14 h-7 rounded-full border-2 border-border bg-border transition-all relative">
+        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-muted transition-all" id="gymThumb"></span>
+      </button>
+    </div>
+
+    <!-- Metrics -->
+    <div class="grid grid-cols-1 gap-3 mb-5">
+
+      <div class="p-4 rounded bg-surface border border-border">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <p class="font-sans text-sm font-medium text-text">Protein</p>
+            <p class="font-sans text-xs text-muted">Ziel: <span id="goalProteinLabel" class="font-mono">150</span> g</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="adjust('protein', -5)" class="w-8 h-8 rounded border border-border text-muted hover:text-text hover:border-text font-mono text-lg leading-none flex items-center justify-center transition-colors">−</button>
+            <div class="relative">
+              <input id="inputProtein" type="number" min="0" max="500" value="0"
+                class="w-20 text-center font-mono text-xl bg-transparent text-text border-b border-border focus:border-amber outline-none py-1 transition-colors"
+                oninput="saveInput('protein', this.value)">
+            </div>
+            <button onclick="adjust('protein', 5)" class="w-8 h-8 rounded border border-border text-muted hover:text-text hover:border-text font-mono text-lg leading-none flex items-center justify-center transition-colors">+</button>
+          </div>
+        </div>
+        <div class="h-1 rounded bg-border overflow-hidden">
+          <div id="barProtein" class="h-full rounded bg-amber transition-all" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded bg-surface border border-border">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <p class="font-sans text-sm font-medium text-text">Deep Work</p>
+            <p class="font-sans text-xs text-muted">Ziel: <span id="goalDeepWorkLabel" class="font-mono">3</span> h</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="adjust('deepwork', -0.5)" class="w-8 h-8 rounded border border-border text-muted hover:text-text hover:border-text font-mono text-lg leading-none flex items-center justify-center transition-colors">−</button>
+            <input id="inputDeepwork" type="number" min="0" max="16" step="0.5" value="0"
+              class="w-20 text-center font-mono text-xl bg-transparent text-text border-b border-border focus:border-amber outline-none py-1 transition-colors"
+              oninput="saveInput('deepwork', this.value)">
+            <button onclick="adjust('deepwork', 0.5)" class="w-8 h-8 rounded border border-border text-muted hover:text-text hover:border-text font-mono text-lg leading-none flex items-center justify-center transition-colors">+</button>
+          </div>
+        </div>
+        <div class="h-1 rounded bg-border overflow-hidden">
+          <div id="barDeepwork" class="h-full rounded bg-amber transition-all" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="p-4 rounded bg-surface border border-border">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <p class="font-sans text-sm font-medium text-text">Schlaf</p>
+            <p class="font-sans text-xs text-muted">Ziel: <span id="goalSleepLabel" class="font-mono">7.5</span> h</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="adjust('sleep', -0.5)" class="w-8 h-8 rounded border border-border text-muted hover:text-text hover:border-text font-mono text-lg leading-none flex items-center justify-center transition-colors">−</button>
+            <input id="inputSleep" type="number" min="0" max="16" step="0.5" value="0"
+              class="w-20 text-center font-mono text-xl bg-transparent text-text border-b border-border focus:border-amber outline-none py-1 transition-colors"
+              oninput="saveInput('sleep', this.value)">
+            <button onclick="adjust('sleep', 0.5)" class="w-8 h-8 rounded border border-border text-muted hover:text-text hover:border-text font-mono text-lg leading-none flex items-center justify-center transition-colors">+</button>
+          </div>
+        </div>
+        <div class="h-1 rounded bg-border overflow-hidden">
+          <div id="barSleep" class="h-full rounded bg-amber transition-all" style="width:0%"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Wins -->
+    <div class="mb-4 p-4 rounded bg-surface border border-border">
+      <p class="font-sans text-sm font-medium text-text mb-1">Wins</p>
+      <p class="font-sans text-xs text-muted mb-3">Was hab ich heute wirklich geschafft?</p>
+      <div class="flex flex-col gap-2">
+        <textarea id="win0" rows="1" placeholder="Win 1 …" oninput="saveText('win0')"
+          class="w-full bg-transparent font-sans text-sm text-text placeholder-muted border-b border-border focus:border-amber outline-none py-1 transition-colors leading-relaxed"></textarea>
+        <textarea id="win1" rows="1" placeholder="Win 2 …" oninput="saveText('win1')"
+          class="w-full bg-transparent font-sans text-sm text-text placeholder-muted border-b border-border focus:border-amber outline-none py-1 transition-colors leading-relaxed"></textarea>
+        <textarea id="win2" rows="1" placeholder="Win 3 …" oninput="saveText('win2')"
+          class="w-full bg-transparent font-sans text-sm text-text placeholder-muted border-b border-border focus:border-amber outline-none py-1 transition-colors leading-relaxed"></textarea>
+      </div>
+    </div>
+
+    <!-- Slips -->
+    <div class="mb-6 p-4 rounded bg-surface border border-border">
+      <p class="font-sans text-sm font-medium text-text mb-1">Slips</p>
+      <p class="font-sans text-xs text-muted mb-3">Wo hab ich Zeit verbrannt / schlechte Gewohnheit?</p>
+      <div class="flex flex-col gap-2">
+        <textarea id="slip0" rows="1" placeholder="Slip 1 …" oninput="saveText('slip0')"
+          class="w-full bg-transparent font-sans text-sm text-text placeholder-muted border-b border-border focus:border-amber outline-none py-1 transition-colors leading-relaxed"></textarea>
+        <textarea id="slip1" rows="1" placeholder="Slip 2 …" oninput="saveText('slip1')"
+          class="w-full bg-transparent font-sans text-sm text-text placeholder-muted border-b border-border focus:border-amber outline-none py-1 transition-colors leading-relaxed"></textarea>
+        <textarea id="slip2" rows="1" placeholder="Slip 3 …" oninput="saveText('slip2')"
+          class="w-full bg-transparent font-sans text-sm text-text placeholder-muted border-b border-border focus:border-amber outline-none py-1 transition-colors leading-relaxed"></textarea>
+      </div>
+    </div>
+
+    <!-- Score Result -->
+    <div id="scoreSection" class="hidden mb-6 p-5 rounded bg-surface border border-amber/30 fade-in">
+      <div class="flex items-start gap-5">
+        <div class="flex-shrink-0">
+          <div class="font-mono font-bold text-amber leading-none" id="scoreNumber" style="font-size:4rem;line-height:1"></div>
+          <div class="font-mono text-muted text-xs mt-1">/10</div>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p id="scoreFeedback" class="font-sans text-sm text-text leading-relaxed mb-3"></p>
+          <div class="border-t border-border pt-3">
+            <p class="font-mono text-xs text-amber uppercase tracking-widest mb-1">Morgen</p>
+            <p id="scoreTomorrow" class="font-sans text-sm text-text leading-relaxed"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Error -->
+    <div id="apiError" class="hidden mb-4 px-4 py-3 rounded border border-red-800 bg-red-950/30 text-sm font-sans text-red-400"></div>
+
+    <!-- Rate Button -->
+    <button id="rateBtn" onclick="rateDay()" class="w-full py-4 rounded bg-amber text-bg font-sans font-medium text-sm tracking-wide hover:bg-amber/90 active:bg-amber/80 transition-colors">
+      Tag bewerten
+    </button>
+
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="view-history" class="hidden fade-in">
+    <div class="mb-6">
+      <p class="font-serif text-2xl text-text mb-1">Verlauf</p>
+      <p class="font-sans text-xs text-muted">Letzte 14 Tage</p>
+    </div>
+
+    <!-- Chart -->
+    <div class="p-4 rounded bg-surface border border-border mb-6">
+      <div id="chartArea" class="flex items-end gap-1.5 h-32 overflow-x-auto pb-2">
+      </div>
+    </div>
+
+    <!-- Detail Panel -->
+    <div id="historyDetail" class="hidden fade-in">
+    </div>
+
+    <!-- Day list -->
+    <div id="historyList" class="flex flex-col gap-3">
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="view-settings" class="hidden fade-in">
+    <div class="mb-6">
+      <p class="font-serif text-2xl text-text mb-1">Einstellungen</p>
+    </div>
+
+    <!-- API Key -->
+    <div class="mb-5 p-4 rounded bg-surface border border-border">
+      <p class="font-sans text-sm font-medium text-text mb-1">Anthropic API Key</p>
+      <p class="font-sans text-xs text-muted mb-3">Wird nur lokal gespeichert.</p>
+      <input id="apiKeyInput" type="password" placeholder="sk-ant-…"
+        class="w-full bg-bg border border-border rounded px-3 py-2 font-mono text-xs text-text focus:border-amber outline-none transition-colors"
+        oninput="saveApiKey(this.value)">
+      <button onclick="toggleApiKeyVisibility()" class="mt-2 text-xs text-muted hover:text-text font-sans underline underline-offset-2">anzeigen / verbergen</button>
+    </div>
+
+    <!-- Goals -->
+    <div class="mb-5 p-4 rounded bg-surface border border-border">
+      <p class="font-sans text-sm font-medium text-text mb-4">Zielwerte</p>
+      <div class="flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <label class="font-sans text-sm text-muted">Protein (g)</label>
+          <input id="goalProtein" type="number" min="50" max="500"
+            class="w-24 text-center font-mono text-sm bg-bg border border-border rounded px-2 py-1.5 text-text focus:border-amber outline-none transition-colors"
+            oninput="saveGoal('protein', this.value)">
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="font-sans text-sm text-muted">Deep Work (h)</label>
+          <input id="goalDeepWork" type="number" min="0.5" max="16" step="0.5"
+            class="w-24 text-center font-mono text-sm bg-bg border border-border rounded px-2 py-1.5 text-text focus:border-amber outline-none transition-colors"
+            oninput="saveGoal('deepwork', this.value)">
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="font-sans text-sm text-muted">Schlaf (h)</label>
+          <input id="goalSleep" type="number" min="4" max="12" step="0.5"
+            class="w-24 text-center font-mono text-sm bg-bg border border-border rounded px-2 py-1.5 text-text focus:border-amber outline-none transition-colors"
+            oninput="saveGoal('sleep', this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Export / Reset -->
+    <div class="flex flex-col gap-3">
+      <button onclick="exportData()" class="w-full py-3 rounded border border-border text-text font-sans text-sm hover:border-text transition-colors">
+        Alle Daten exportieren (JSON)
+      </button>
+      <button onclick="resetData()" class="w-full py-3 rounded border border-red-800/50 text-red-500 font-sans text-sm hover:border-red-600 transition-colors">
+        Alle Daten zurücksetzen
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const TODAY = fmtDate(new Date());
+let activeDate = TODAY;
+
+function fmtDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function offsetDate(base, days) {
+  const d = new Date(base + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return fmtDate(d);
+}
+
+// ─── LocalStorage helpers ─────────────────────────────────────────────────────
+function getDay(date) {
+  return JSON.parse(localStorage.getItem('day:' + date) || 'null') || {};
+}
+
+function setDay(date, data) {
+  localStorage.setItem('day:' + date, JSON.stringify(data));
+}
+
+function updateDay(date, patch) {
+  setDay(date, { ...getDay(date), ...patch });
+}
+
+function getGoals() {
+  return JSON.parse(localStorage.getItem('goals') || 'null') || { protein: 150, deepwork: 3, sleep: 7.5 };
+}
+
+function setGoals(g) {
+  localStorage.setItem('goals', JSON.stringify(g));
+}
+
+function getApiKey() {
+  return localStorage.getItem('apiKey') || '';
+}
+
+// ─── Tab routing ──────────────────────────────────────────────────────────────
+let currentTab = 'today';
+
+function setTab(tab) {
+  ['today', 'history', 'settings'].forEach(t => {
+    document.getElementById('view-' + t).classList.toggle('hidden', t !== tab);
+    const el = document.getElementById('tab-' + t);
+    el.className = el.className.replace(/tab-active|tab-inactive/g, '').trim();
+    el.classList.add(t === tab ? 'tab-active' : 'tab-inactive');
+  });
+  currentTab = tab;
+  if (tab === 'history') renderHistory();
+  if (tab === 'settings') renderSettings();
+}
+
+// ─── Date nav ────────────────────────────────────────────────────────────────
+function navDay(delta) {
+  const next = offsetDate(activeDate, delta);
+  if (next > TODAY) return;
+  activeDate = next;
+  renderToday();
+}
+
+function switchToYesterday() {
+  activeDate = offsetDate(TODAY, -1);
+  setTab('today');
+  renderToday();
+}
+
+// ─── Today view ───────────────────────────────────────────────────────────────
+function renderToday() {
+  const d = getDay(activeDate);
+  const goals = getGoals();
+  const isToday = activeDate === TODAY;
+
+  // Date label
+  const dateObj = new Date(activeDate + 'T12:00:00');
+  const label = isToday ? 'Heute' : dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+  document.getElementById('activeDate').textContent = label + ' · ' + activeDate;
+  document.getElementById('nextDayBtn').disabled = isToday;
+
+  // Gym
+  setGymUI(d.gym || false);
+
+  // Numbers
+  ['protein', 'deepwork', 'sleep'].forEach(k => {
+    const inputEl = document.getElementById('input' + cap(k));
+    const val = d[k] !== undefined ? d[k] : 0;
+    inputEl.value = val;
+    updateBar(k, val, goals);
+  });
+
+  // Texts
+  ['win0','win1','win2','slip0','slip1','slip2'].forEach(k => {
+    document.getElementById(k).value = d[k] || '';
+  });
+
+  // Goal labels
+  document.getElementById('goalProteinLabel').textContent = goals.protein;
+  document.getElementById('goalDeepWorkLabel').textContent = goals.deepwork;
+  document.getElementById('goalSleepLabel').textContent = goals.sleep;
+
+  // Score
+  if (d.score !== undefined) {
+    showScore(d);
+  } else {
+    document.getElementById('scoreSection').classList.add('hidden');
+  }
+
+  // API error clear
+  document.getElementById('apiError').classList.add('hidden');
+}
+
+function cap(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function setGymUI(val) {
+  const toggle = document.getElementById('gymToggle');
+  const thumb = document.getElementById('gymThumb');
+  if (val) {
+    toggle.classList.add('bg-amber', 'border-amber');
+    toggle.classList.remove('bg-border', 'border-border');
+    thumb.classList.add('translate-x-7', 'bg-bg');
+    thumb.classList.remove('bg-muted', 'translate-x-0');
+  } else {
+    toggle.classList.remove('bg-amber', 'border-amber');
+    toggle.classList.add('bg-border', 'border-border');
+    thumb.classList.remove('translate-x-7', 'bg-bg');
+    thumb.classList.add('bg-muted', 'translate-x-0');
+  }
+}
+
+function toggleGym() {
+  const d = getDay(activeDate);
+  const newVal = !d.gym;
+  updateDay(activeDate, { gym: newVal });
+  setGymUI(newVal);
+}
+
+function adjust(key, delta) {
+  const el = document.getElementById('input' + cap(key));
+  const goals = getGoals();
+  let v = parseFloat(el.value || 0) + delta;
+  v = Math.max(0, Math.round(v * 10) / 10);
+  el.value = v;
+  updateDay(activeDate, { [key]: v });
+  updateBar(key, v, goals);
+}
+
+function saveInput(key, val) {
+  const goals = getGoals();
+  const v = parseFloat(val) || 0;
+  updateDay(activeDate, { [key]: v });
+  updateBar(key, v, goals);
+}
+
+function updateBar(key, val, goals) {
+  const goalMap = { protein: goals.protein, deepwork: goals.deepwork, sleep: goals.sleep };
+  const goal = goalMap[key];
+  const pct = Math.min(100, Math.round((val / goal) * 100));
+  const bar = document.getElementById('bar' + cap(key));
+  if (bar) bar.style.width = pct + '%';
+}
+
+function saveText(id) {
+  updateDay(activeDate, { [id]: document.getElementById(id).value });
+}
+
+function showScore(d) {
+  document.getElementById('scoreNumber').textContent = d.score;
+  document.getElementById('scoreFeedback').textContent = d.feedback || '';
+  document.getElementById('scoreTomorrow').textContent = d.tomorrow || '';
+  document.getElementById('scoreSection').classList.remove('hidden');
+}
+
+// ─── Rate Day ─────────────────────────────────────────────────────────────────
+async function rateDay() {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    showError('Kein API Key gesetzt. Gehe zu Einstellungen.');
+    return;
+  }
+
+  const d = getDay(activeDate);
+  const goals = getGoals();
+  const btn = document.getElementById('rateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Bewerte …';
+  document.getElementById('apiError').classList.add('hidden');
+
+  const wins = [d.win0, d.win1, d.win2].filter(Boolean).join('\n') || '(keine)';
+  const slips = [d.slip0, d.slip1, d.slip2].filter(Boolean).join('\n') || '(keine)';
+
+  const userMsg = `Datum: ${activeDate}
+
+Gym: ${d.gym ? 'Ja' : 'Nein'}
+Protein: ${d.protein || 0} g (Ziel: ${goals.protein} g)
+Deep Work: ${d.deepwork || 0} h (Ziel: ${goals.deepwork} h)
+Schlaf: ${d.sleep || 0} h (Ziel: ${goals.sleep} h)
+
+Wins:
+${wins}
+
+Slips:
+${slips}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        system: 'Du bist ein direkter, brutal ehrlicher Coach. Kein Sugarcoating. Wenn der Tag schwach war, sag es klar. Wenn er stark war, sag es trocken ohne Übertreibung. Sprich Deutsch, per du. Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Markdown-Fences: {"score": <1-10 Integer>, "feedback": "<2-3 Sätze>", "tomorrow": "<1 konkrete Aktion für morgen>"}',
+        messages: [{ role: 'user', content: userMsg }],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const raw = data.content?.[0]?.text || '';
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+      else throw new Error('Ungültige API-Antwort: ' + raw.slice(0, 100));
+    }
+
+    updateDay(activeDate, {
+      score: parsed.score,
+      feedback: parsed.feedback,
+      tomorrow: parsed.tomorrow,
+    });
+
+    showScore({ ...d, ...parsed });
+  } catch (err) {
+    showError('API-Fehler: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Tag bewerten';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('apiError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ─── History ──────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const days = getLast14Days();
+  renderChart(days);
+  renderHistoryList(days);
+  document.getElementById('historyDetail').classList.add('hidden');
+}
+
+function getLast14Days() {
+  const result = [];
+  for (let i = 13; i >= 0; i--) {
+    const date = offsetDate(TODAY, -i);
+    result.push({ date, data: getDay(date) });
+  }
+  return result;
+}
+
+function renderChart(days) {
+  const area = document.getElementById('chartArea');
+  area.innerHTML = '';
+  days.forEach(({ date, data }) => {
+    const score = data.score;
+    const hasScore = score !== undefined;
+    const heightPct = hasScore ? (score / 10) * 100 : 8;
+    const dateObj = new Date(date + 'T12:00:00');
+    const dayLabel = dateObj.toLocaleDateString('de-DE', { weekday: 'short' }).slice(0, 2);
+    const dayNum = dateObj.getDate();
+
+    const col = document.createElement('div');
+    col.className = 'bar-day flex flex-col items-center gap-1 flex-1 min-w-0 relative cursor-pointer group';
+    col.onclick = () => showHistoryDetail(date, document.querySelector(`[data-date="${date}"]`));
+
+    col.innerHTML = `
+      <div class="bar-tooltip absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-surface border border-border rounded px-2 py-1 text-xs font-mono text-text whitespace-nowrap z-10">
+        ${hasScore ? score + '/10' : '—'}
+      </div>
+      <div class="w-full rounded-sm transition-all ${hasScore ? 'bg-amber group-hover:bg-amber/80' : 'bg-border'}"
+           style="height:${heightPct}%" data-date="${date}"></div>
+      <div class="text-center">
+        <p class="font-mono text-[9px] text-muted leading-none">${dayLabel}</p>
+        <p class="font-mono text-[9px] text-muted leading-none">${dayNum}</p>
+      </div>
+    `;
+    area.appendChild(col);
+  });
+}
+
+function renderHistoryList(days) {
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  const rated = days.filter(d => d.data.score !== undefined).reverse();
+  if (rated.length === 0) {
+    list.innerHTML = '<p class="font-sans text-sm text-muted">Noch keine bewerteten Tage.</p>';
+    return;
+  }
+  rated.forEach(({ date, data }) => {
+    const dateObj = new Date(date + 'T12:00:00');
+    const label = dateObj.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const el = document.createElement('button');
+    el.className = 'w-full text-left p-4 rounded bg-surface border border-border hover:border-muted transition-colors';
+    el.onclick = () => showHistoryDetail(date, el);
+    el.innerHTML = `
+      <div class="flex items-center justify-between">
+        <p class="font-sans text-sm text-text">${label}</p>
+        <p class="font-mono text-amber font-bold text-lg">${data.score}<span class="text-muted text-xs">/10</span></p>
+      </div>
+      <p class="font-sans text-xs text-muted mt-1 line-clamp-1">${data.feedback || ''}</p>
+    `;
+    list.appendChild(el);
+  });
+}
+
+function showHistoryDetail(date, _anchor) {
+  const d = getDay(date);
+  const goals = getGoals();
+  const detail = document.getElementById('historyDetail');
+  const dateObj = new Date(date + 'T12:00:00');
+  const label = dateObj.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const wins = [d.win0, d.win1, d.win2].filter(Boolean);
+  const slips = [d.slip0, d.slip1, d.slip2].filter(Boolean);
+
+  detail.innerHTML = `
+    <div class="mb-4 p-4 rounded bg-surface border border-amber/20 fade-in">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <p class="font-mono text-xs text-muted tracking-wider">${date}</p>
+          <p class="font-sans text-sm text-text mt-0.5">${label}</p>
+        </div>
+        ${d.score !== undefined ? `<p class="font-mono text-amber font-bold text-3xl">${d.score}<span class="text-muted text-sm">/10</span></p>` : ''}
+      </div>
+      <div class="grid grid-cols-2 gap-2 mb-4 text-xs font-mono">
+        <div class="p-2 rounded bg-bg"><span class="text-muted">Gym</span> <span class="text-text ml-1">${d.gym ? 'Ja' : 'Nein'}</span></div>
+        <div class="p-2 rounded bg-bg"><span class="text-muted">Protein</span> <span class="text-text ml-1">${d.protein || 0}/${goals.protein}g</span></div>
+        <div class="p-2 rounded bg-bg"><span class="text-muted">Deep Work</span> <span class="text-text ml-1">${d.deepwork || 0}/${goals.deepwork}h</span></div>
+        <div class="p-2 rounded bg-bg"><span class="text-muted">Schlaf</span> <span class="text-text ml-1">${d.sleep || 0}/${goals.sleep}h</span></div>
+      </div>
+      ${wins.length ? `<div class="mb-3"><p class="font-mono text-xs text-amber uppercase tracking-widest mb-1">Wins</p>${wins.map(w => `<p class="font-sans text-xs text-text leading-relaxed">· ${w}</p>`).join('')}</div>` : ''}
+      ${slips.length ? `<div class="mb-3"><p class="font-mono text-xs text-muted uppercase tracking-widest mb-1">Slips</p>${slips.map(s => `<p class="font-sans text-xs text-text leading-relaxed">· ${s}</p>`).join('')}</div>` : ''}
+      ${d.feedback ? `<div class="border-t border-border pt-3 mt-3"><p class="font-sans text-sm text-text leading-relaxed">${d.feedback}</p></div>` : ''}
+      ${d.tomorrow ? `<div class="mt-2"><p class="font-mono text-xs text-amber uppercase tracking-widest mb-1">Morgen</p><p class="font-sans text-xs text-text leading-relaxed">${d.tomorrow}</p></div>` : ''}
+      <button onclick="document.getElementById('historyDetail').classList.add('hidden')"
+        class="mt-4 text-xs text-muted hover:text-text font-sans underline underline-offset-2">schließen</button>
+    </div>
+  `;
+  detail.classList.remove('hidden');
+  detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+function renderSettings() {
+  const goals = getGoals();
+  document.getElementById('apiKeyInput').value = getApiKey();
+  document.getElementById('goalProtein').value = goals.protein;
+  document.getElementById('goalDeepWork').value = goals.deepwork;
+  document.getElementById('goalSleep').value = goals.sleep;
+}
+
+function saveApiKey(val) {
+  localStorage.setItem('apiKey', val.trim());
+}
+
+function toggleApiKeyVisibility() {
+  const el = document.getElementById('apiKeyInput');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+function saveGoal(key, val) {
+  const goals = getGoals();
+  goals[key] = parseFloat(val) || goals[key];
+  setGoals(goals);
+  // Update labels in today view
+  document.getElementById('goalProteinLabel').textContent = goals.protein;
+  document.getElementById('goalDeepWorkLabel').textContent = goals.deepwork;
+  document.getElementById('goalSleepLabel').textContent = goals.sleep;
+}
+
+function exportData() {
+  const out = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    out[k] = localStorage.getItem(k);
+  }
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'productivity-tracker-' + TODAY + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetData() {
+  if (!confirm('Wirklich alle Daten löschen? Das kann nicht rückgängig gemacht werden.')) return;
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    keysToRemove.push(localStorage.key(i));
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  renderToday();
+  renderSettings();
+  alert('Alle Daten gelöscht.');
+}
+
+// ─── Streak ───────────────────────────────────────────────────────────────────
+function calcStreak() {
+  let streak = 0;
+  let date = TODAY;
+  while (true) {
+    const d = getDay(date);
+    if (d.score === undefined) break;
+    streak++;
+    date = offsetDate(date, -1);
+  }
+  return streak;
+}
+
+function updateStreak() {
+  const streak = calcStreak();
+  const badge = document.getElementById('streakBadge');
+  if (streak > 0) {
+    document.getElementById('streakCount').textContent = streak;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+// ─── Yesterday banner ─────────────────────────────────────────────────────────
+function checkYesterday() {
+  const yesterday = offsetDate(TODAY, -1);
+  const d = getDay(yesterday);
+  if (d.score === undefined) {
+    document.getElementById('yesterdayBanner').classList.remove('hidden');
+  }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  // Date header
+  const now = new Date();
+  document.getElementById('dateDisplay').textContent =
+    now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  renderToday();
+  updateStreak();
+  checkYesterday();
+
+  // Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+  }
+}
+
+// Re-render streak after rating
+const origRateDay = rateDay;
+window.addEventListener('storage', () => updateStreak());
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
