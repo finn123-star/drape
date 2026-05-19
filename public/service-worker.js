@@ -1,5 +1,5 @@
 const CACHE = 'tracker-v1';
-const OFFLINE_URLS = ['/tracker/', '/tracker/index.html'];
+const OFFLINE_URLS = ['/index.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -26,6 +26,6 @@ self.addEventListener('fetch', e => {
     return;
   }
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/tracker/')))
+    caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('/index.html')))
   );
 });
