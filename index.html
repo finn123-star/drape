@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Productivity Tracker</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --panel2:#1f232c;
+    --border:#2a2f3a;
+    --text:#e8eaed;
+    --muted:#8a92a3;
+    --accent:#7c5cff;
+    --accent2:#5b8def;
+    --good:#37d399;
+    --warn:#f4b740;
+    --bad:#ef5b5b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.45}
+  a{color:var(--accent2)}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 18px 80px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  header h1{font-size:20px;margin:0;letter-spacing:.2px}
+  header .date{color:var(--muted);font-size:13px}
+  .tabs{display:flex;gap:6px;margin-bottom:18px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:4px}
+  .tabs button{flex:1;background:transparent;border:0;color:var(--muted);padding:9px 10px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:500}
+  .tabs button.active{background:var(--panel2);color:var(--text)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .row + .row{margin-top:14px}
+  .label{font-weight:600}
+  .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .ctrl{display:flex;align-items:center;gap:10px}
+  .ctrl button{width:38px;height:38px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:18px;cursor:pointer}
+  .ctrl button:hover{border-color:#3a4150}
+  .ctrl .val{min-width:74px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600}
+  .toggle{position:relative;width:62px;height:34px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);cursor:pointer}
+  .toggle .knob{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#4a5060;transition:all .15s}
+  .toggle.on{background:rgba(55,211,153,.18);border-color:rgba(55,211,153,.5)}
+  .toggle.on .knob{left:31px;background:var(--good)}
+  .bar{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;margin-top:8px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:999px}
+  textarea, input[type=text], input[type=password], input[type=number]{
+    width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;outline:none
+  }
+  textarea{resize:vertical;min-height:38px}
+  textarea:focus,input:focus{border-color:#3a4150}
+  .list3{display:flex;flex-direction:column;gap:8px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:11px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;font-size:14px;font-weight:600;font-family:inherit}
+  .btn:hover{border-color:#3a4150}
+  .btn.primary{background:linear-gradient(180deg,var(--accent),#6748ee);border-color:transparent;color:#fff}
+  .btn.primary:disabled{opacity:.55;cursor:not-allowed}
+  .btn.danger{background:transparent;color:var(--bad);border-color:rgba(239,91,91,.4)}
+  .btn.block{display:flex;width:100%}
+  .scorebox{display:flex;align-items:center;gap:14px}
+  .scorebox .num{font-size:46px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .scorebox .num.good{color:var(--good)}
+  .scorebox .num.warn{color:var(--warn)}
+  .scorebox .num.bad{color:var(--bad)}
+  .scorebox .meta{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .feedback{margin-top:10px;background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:12px 14px;white-space:pre-wrap}
+  .tomorrow{margin-top:8px;padding:12px 14px;border-radius:11px;border:1px solid rgba(124,92,255,.45);background:rgba(124,92,255,.10)}
+  .chart{display:flex;align-items:flex-end;gap:6px;height:160px;margin-top:6px}
+  .chart .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+  .chart .bar-col .bcol{width:100%;border-radius:6px 6px 2px 2px;background:var(--panel2);min-height:4px;position:relative;transition:transform .1s}
+  .chart .bar-col:hover .bcol{transform:translateY(-2px)}
+  .chart .bar-col .day{font-size:10px;color:var(--muted)}
+  .chart .bar-col.today .day{color:var(--text);font-weight:700}
+  .streak{display:flex;align-items:baseline;gap:10px}
+  .streak .n{font-size:48px;font-weight:700;color:var(--accent)}
+  .streak .lbl{color:var(--muted);font-size:13px}
+  .err{color:var(--bad);font-size:13px;margin-top:8px}
+  .ok{color:var(--good);font-size:13px;margin-top:8px}
+  .muted{color:var(--muted)}
+  .hidden{display:none !important}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;max-width:540px;width:100%;max-height:90vh;overflow:auto;padding:18px}
+  .modal h3{margin:0 0 10px}
+  .kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--muted)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);font-size:12px;color:var(--muted)}
+  details > summary{cursor:pointer;color:var(--muted);font-size:13px}
+  details[open] > summary{margin-bottom:8px}
+  hr{border:0;border-top:1px solid var(--border);margin:14px 0}
+  .goal-grid{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center}
+  .goal-grid .label{font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Productivity Tracker</h1>
+      <div class="date" id="todayLabel"></div>
+    </div>
+    <div class="pill" id="streakPill">Streak 0</div>
+  </header>
+
+  <div class="tabs">
+    <button data-tab="today" class="active">Heute</button>
+    <button data-tab="history">Verlauf</button>
+    <button data-tab="settings">Settings</button>
+  </div>
+
+  <!-- TODAY -->
+  <section id="tab-today">
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div class="label">Gym</div>
+          <div class="sub">War ich heute trainieren?</div>
+        </div>
+        <div class="toggle" id="gymToggle"><div class="knob"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div class="label">Protein</div>
+          <div class="sub">Ziel <span id="goalProteinLbl">150</span> g</div>
+        </div>
+        <div class="ctrl">
+          <button data-act="protein" data-delta="-10">−</button>
+          <div class="val"><span id="proteinVal">0</span> g</div>
+          <button data-act="protein" data-delta="10">+</button>
+        </div>
+      </div>
+      <div class="bar"><i id="proteinBar" style="width:0%"></i></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div class="label">Deep Work</div>
+          <div class="sub">Ziel <span id="goalDeepLbl">3</span> h</div>
+        </div>
+        <div class="ctrl">
+          <button data-act="deep" data-delta="-0.5">−</button>
+          <div class="val"><span id="deepVal">0</span> h</div>
+          <button data-act="deep" data-delta="0.5">+</button>
+        </div>
+      </div>
+      <div class="bar"><i id="deepBar" style="width:0%"></i></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div class="label">Schlaf letzte Nacht</div>
+          <div class="sub">Ziel <span id="goalSleepLbl">7.5</span> h</div>
+        </div>
+        <div class="ctrl">
+          <button data-act="sleep" data-delta="-0.5">−</button>
+          <div class="val"><span id="sleepVal">0</span> h</div>
+          <button data-act="sleep" data-delta="0.5">+</button>
+        </div>
+      </div>
+      <div class="bar"><i id="sleepBar" style="width:0%"></i></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Wins</div>
+      <div class="sub" style="margin-bottom:8px">Was ist heute gut gelaufen?</div>
+      <div class="list3">
+        <input type="text" data-field="win0" placeholder="Win 1">
+        <input type="text" data-field="win1" placeholder="Win 2">
+        <input type="text" data-field="win2" placeholder="Win 3">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Slips</div>
+      <div class="sub" style="margin-bottom:8px">Wo bist du heute geslackt?</div>
+      <div class="list3">
+        <input type="text" data-field="slip0" placeholder="Slip 1">
+        <input type="text" data-field="slip1" placeholder="Slip 2">
+        <input type="text" data-field="slip2" placeholder="Slip 3">
+      </div>
+    </div>
+
+    <button id="rateBtn" class="btn primary block">Tag bewerten</button>
+    <div id="rateErr" class="err"></div>
+
+    <div id="resultCard" class="card hidden" style="margin-top:14px">
+      <div class="scorebox">
+        <div class="num" id="scoreNum">–</div>
+        <div>
+          <div class="meta">Score</div>
+          <div class="muted" id="scoreSub">heutiger Tag</div>
+        </div>
+      </div>
+      <div class="feedback" id="feedbackText"></div>
+      <div class="tomorrow"><strong>Morgen:</strong> <span id="tomorrowText"></span></div>
+    </div>
+
+  </section>
+
+  <!-- HISTORY -->
+  <section id="tab-history" class="hidden">
+
+    <div class="card">
+      <div class="streak">
+        <div class="n" id="streakN">0</div>
+        <div class="lbl">Tage Streak<br><span class="muted">(aufeinanderfolgende bewertete Tage)</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label" style="margin-bottom:8px">Letzte 14 Tage</div>
+      <div class="chart" id="chart"></div>
+      <div class="sub" style="margin-top:10px">Klick auf Balken für Details. Leere Balken = nicht bewertet.</div>
+    </div>
+
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hidden">
+
+    <div class="card">
+      <div class="label">API Key</div>
+      <div class="sub" style="margin-bottom:10px">
+        Hol dir einen unter <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys.
+        Wird nur lokal im Browser gespeichert.
+      </div>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn" id="saveKey">Speichern</button>
+        <button class="btn" id="toggleKeyVis">Anzeigen</button>
+      </div>
+      <div id="keyMsg" class="ok"></div>
+    </div>
+
+    <div class="card">
+      <div class="label" style="margin-bottom:10px">Zielwerte</div>
+      <div class="goal-grid">
+        <div class="label">Protein (g)</div><input type="number" id="goalProtein" step="10" min="0">
+        <div class="label">Deep Work (h)</div><input type="number" id="goalDeep" step="0.5" min="0">
+        <div class="label">Schlaf (h)</div><input type="number" id="goalSleep" step="0.5" min="0">
+      </div>
+      <button class="btn" id="saveGoals" style="margin-top:12px">Ziele speichern</button>
+      <div id="goalsMsg" class="ok"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Daten</div>
+      <div class="sub" style="margin-bottom:10px">Export aller Tage als JSON oder alles löschen.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="exportBtn">JSON exportieren</button>
+        <button class="btn danger" id="resetBtn">Alle Daten zurücksetzen</button>
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="modalBg" class="modal-bg hidden">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 id="modalTitle">Detail</h3>
+      <button class="btn" id="modalClose">×</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Storage helpers ----------
+  const LS_KEY = 'pt:apiKey';
+  const LS_GOALS = 'pt:goals';
+  const DEFAULT_GOALS = { protein: 150, deep: 3, sleep: 7.5 };
+
+  function todayKey(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function dayLS(date) { return `day:${date}`; }
+
+  function loadDay(date) {
+    try {
+      const raw = localStorage.getItem(dayLS(date));
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch { return null; }
+  }
+  function saveDay(date, data) {
+    localStorage.setItem(dayLS(date), JSON.stringify(data));
+  }
+  function loadGoals() {
+    try {
+      const raw = localStorage.getItem(LS_GOALS);
+      if (!raw) return { ...DEFAULT_GOALS };
+      return { ...DEFAULT_GOALS, ...JSON.parse(raw) };
+    } catch { return { ...DEFAULT_GOALS }; }
+  }
+  function saveGoals(g) { localStorage.setItem(LS_GOALS, JSON.stringify(g)); }
+  function loadKey() { return localStorage.getItem(LS_KEY) || ''; }
+  function saveKey(k) { localStorage.setItem(LS_KEY, k); }
+
+  // ---------- State ----------
+  const today = todayKey();
+  let goals = loadGoals();
+  let day = loadDay(today) || {
+    date: today,
+    gym: false,
+    protein: 0,
+    deep: 0,
+    sleep: 0,
+    wins: ['','',''],
+    slips: ['','',''],
+    score: null,
+    feedback: null,
+    tomorrow: null,
+    ratedAt: null
+  };
+
+  function persist() {
+    day.date = today;
+    saveDay(today, day);
+  }
+
+  // ---------- Render today ----------
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  function fmtNum(n){ return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/,''); }
+
+  function renderToday() {
+    $('#todayLabel').textContent = new Date().toLocaleDateString('de-DE',
+      { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+
+    $('#goalProteinLbl').textContent = fmtNum(goals.protein);
+    $('#goalDeepLbl').textContent = fmtNum(goals.deep);
+    $('#goalSleepLbl').textContent = fmtNum(goals.sleep);
+
+    $('#gymToggle').classList.toggle('on', !!day.gym);
+
+    $('#proteinVal').textContent = fmtNum(day.protein);
+    $('#deepVal').textContent = fmtNum(day.deep);
+    $('#sleepVal').textContent = fmtNum(day.sleep);
+
+    $('#proteinBar').style.width = Math.min(100, (day.protein / goals.protein) * 100) + '%';
+    $('#deepBar').style.width   = Math.min(100, (day.deep    / goals.deep)    * 100) + '%';
+    $('#sleepBar').style.width  = Math.min(100, (day.sleep   / goals.sleep)   * 100) + '%';
+
+    for (let i = 0; i < 3; i++) {
+      const w = $(`input[data-field="win${i}"]`);
+      const s = $(`input[data-field="slip${i}"]`);
+      if (w && w.value !== day.wins[i]) w.value = day.wins[i] || '';
+      if (s && s.value !== day.slips[i]) s.value = day.slips[i] || '';
+    }
+
+    renderResult();
+  }
+
+  function renderResult() {
+    const box = $('#resultCard');
+    if (day.score == null) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const n = $('#scoreNum');
+    n.textContent = day.score;
+    n.classList.remove('good','warn','bad');
+    if (day.score >= 8) n.classList.add('good');
+    else if (day.score >= 5) n.classList.add('warn');
+    else n.classList.add('bad');
+    $('#feedbackText').textContent = day.feedback || '';
+    $('#tomorrowText').textContent = day.tomorrow || '';
+    $('#scoreSub').textContent = day.ratedAt
+      ? `bewertet ${new Date(day.ratedAt).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}`
+      : 'heutiger Tag';
+  }
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  // ---------- Today bindings ----------
+  $('#gymToggle').addEventListener('click', () => {
+    day.gym = !day.gym;
+    persist();
+    renderToday();
+  });
+
+  document.querySelectorAll('button[data-act]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.act;
+      const delta = parseFloat(btn.dataset.delta);
+      if (act === 'protein') day.protein = clamp(day.protein + delta, 0, 1000);
+      if (act === 'deep')    day.deep    = clamp(Math.round((day.deep + delta) * 2) / 2, 0, 24);
+      if (act === 'sleep')   day.sleep   = clamp(Math.round((day.sleep + delta) * 2) / 2, 0, 24);
+      persist();
+      renderToday();
+    });
+  });
+
+  document.querySelectorAll('input[data-field]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const f = inp.dataset.field;
+      const m = f.match(/^(win|slip)(\d)$/);
+      if (!m) return;
+      const arr = m[1] === 'win' ? day.wins : day.slips;
+      arr[parseInt(m[2],10)] = inp.value;
+      persist();
+    });
+  });
+
+  // ---------- Rate day ----------
+  const rateBtn = $('#rateBtn');
+  const rateErr = $('#rateErr');
+
+  rateBtn.addEventListener('click', async () => {
+    rateErr.textContent = '';
+    const key = loadKey();
+    if (!key) {
+      rateErr.textContent = 'Kein API Key. Geh in die Settings und trag einen ein.';
+      return;
+    }
+    rateBtn.disabled = true;
+    const origLabel = rateBtn.textContent;
+    rateBtn.textContent = 'Bewertet...';
+
+    const payload = {
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system: "Du bist ein direkter, brutal ehrlicher Coach. Kein Sugarcoating. Wenn der Tag schwach war: klar benennen. Sprich Deutsch per du. Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Code-Fences: {\"score\": <1-10 integer>, \"feedback\": \"<2-3 Sätze>\", \"tomorrow\": \"<1 konkrete Aktion>\"}",
+      messages: [{
+        role: 'user',
+        content: buildUserMessage(day, goals)
+      }]
+    };
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+      }
+      const data = await res.json();
+      const text = (data.content && data.content[0] && data.content[0].text) || '';
+      const parsed = parseJsonLoose(text);
+      if (!parsed || typeof parsed.score !== 'number') {
+        throw new Error('Antwort konnte nicht geparsed werden: ' + text.slice(0,200));
+      }
+      day.score = Math.round(clamp(parsed.score, 1, 10));
+      day.feedback = String(parsed.feedback || '').trim();
+      day.tomorrow = String(parsed.tomorrow || '').trim();
+      day.ratedAt = new Date().toISOString();
+      persist();
+      renderToday();
+    } catch (e) {
+      rateErr.textContent = 'Fehler: ' + (e.message || e);
+    } finally {
+      rateBtn.disabled = false;
+      rateBtn.textContent = origLabel;
+    }
+  });
+
+  function buildUserMessage(d, g) {
+    const wins  = d.wins.map(s => s.trim()).filter(Boolean);
+    const slips = d.slips.map(s => s.trim()).filter(Boolean);
+    return [
+      `Datum: ${d.date}`,
+      ``,
+      `Tracking heute:`,
+      `- Gym: ${d.gym ? 'ja' : 'nein'}`,
+      `- Protein: ${fmtNum(d.protein)} g (Ziel ${fmtNum(g.protein)} g)`,
+      `- Deep Work: ${fmtNum(d.deep)} h (Ziel ${fmtNum(g.deep)} h)`,
+      `- Schlaf letzte Nacht: ${fmtNum(d.sleep)} h (Ziel ${fmtNum(g.sleep)} h)`,
+      ``,
+      `Wins:`,
+      ...(wins.length ? wins.map(w => `- ${w}`) : ['- (keine)']),
+      ``,
+      `Slips:`,
+      ...(slips.length ? slips.map(s => `- ${s}`) : ['- (keine)']),
+      ``,
+      `Bewerte den Tag von 1-10, gib 2-3 Sätze ehrliches Feedback und eine konkrete Aktion für morgen.`
+    ].join('\n');
+  }
+
+  function parseJsonLoose(s) {
+    if (!s) return null;
+    try { return JSON.parse(s); } catch {}
+    const m = s.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(m[0]); } catch {} }
+    return null;
+  }
+
+  // ---------- Tabs ----------
+  document.querySelectorAll('.tabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      const tab = b.dataset.tab;
+      ['today','history','settings'].forEach(t => {
+        $(`#tab-${t}`).classList.toggle('hidden', t !== tab);
+      });
+      if (tab === 'history') renderHistory();
+      if (tab === 'settings') renderSettings();
+    });
+  });
+
+  // ---------- History ----------
+  function lastNDates(n) {
+    const out = [];
+    const base = new Date();
+    base.setHours(0,0,0,0);
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(base);
+      d.setDate(base.getDate() - i);
+      out.push(todayKey(d));
+    }
+    return out;
+  }
+
+  function computeStreak() {
+    let s = 0;
+    const base = new Date();
+    base.setHours(0,0,0,0);
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() - i);
+      const k = todayKey(d);
+      const rec = loadDay(k);
+      if (rec && typeof rec.score === 'number') s++;
+      else break;
+    }
+    return s;
+  }
+
+  function renderHistory() {
+    const dates = lastNDates(14);
+    const chart = $('#chart');
+    chart.innerHTML = '';
+    dates.forEach(dt => {
+      const rec = loadDay(dt);
+      const score = rec && typeof rec.score === 'number' ? rec.score : 0;
+      const pct = (score / 10) * 100;
+      const col = document.createElement('div');
+      col.className = 'bar-col' + (dt === today ? ' today' : '');
+      const bcol = document.createElement('div');
+      bcol.className = 'bcol';
+      bcol.style.height = pct + '%';
+      bcol.style.background = scoreColor(score);
+      bcol.title = score ? `Score ${score}` : 'nicht bewertet';
+      const lab = document.createElement('div');
+      lab.className = 'day';
+      const dObj = new Date(dt + 'T00:00');
+      lab.textContent = dObj.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+      col.appendChild(bcol);
+      col.appendChild(lab);
+      col.addEventListener('click', () => openDetail(dt));
+      chart.appendChild(col);
+    });
+    const s = computeStreak();
+    $('#streakN').textContent = s;
+    $('#streakPill').textContent = `Streak ${s}`;
+  }
+
+  function scoreColor(s) {
+    if (!s) return 'var(--panel2)';
+    if (s >= 8) return 'linear-gradient(180deg, #37d399, #1fa97a)';
+    if (s >= 5) return 'linear-gradient(180deg, #f4b740, #d28b1f)';
+    return 'linear-gradient(180deg, #ef5b5b, #b53939)';
+  }
+
+  function openDetail(date) {
+    const rec = loadDay(date);
+    const modal = $('#modalBg');
+    const body = $('#modalBody');
+    $('#modalTitle').textContent = new Date(date+'T00:00').toLocaleDateString('de-DE',
+      { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    if (!rec) {
+      body.innerHTML = `<p class="muted">Keine Daten für diesen Tag.</p>`;
+    } else {
+      const wins = (rec.wins||[]).filter(Boolean);
+      const slips = (rec.slips||[]).filter(Boolean);
+      const scoreHtml = typeof rec.score === 'number'
+        ? `<div class="scorebox" style="margin-bottom:10px"><div class="num ${rec.score>=8?'good':rec.score>=5?'warn':'bad'}">${rec.score}</div><div class="meta">Score</div></div>`
+        : `<p class="muted">Nicht bewertet.</p>`;
+      body.innerHTML = `
+        ${scoreHtml}
+        ${rec.feedback ? `<div class="feedback">${escapeHtml(rec.feedback)}</div>`:''}
+        ${rec.tomorrow ? `<div class="tomorrow"><strong>Morgen:</strong> ${escapeHtml(rec.tomorrow)}</div>`:''}
+        <hr>
+        <div class="kv"><span class="k">Gym</span><span>${rec.gym?'Ja':'Nein'}</span></div>
+        <div class="kv"><span class="k">Protein</span><span>${fmtNum(rec.protein||0)} g</span></div>
+        <div class="kv"><span class="k">Deep Work</span><span>${fmtNum(rec.deep||0)} h</span></div>
+        <div class="kv"><span class="k">Schlaf</span><span>${fmtNum(rec.sleep||0)} h</span></div>
+        ${wins.length?`<div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Wins</div>${wins.map(w=>`<div>• ${escapeHtml(w)}</div>`).join('')}</div>`:''}
+        ${slips.length?`<div style="margin-top:10px"><div class="muted" style="font-size:12px;margin-bottom:4px">Slips</div>${slips.map(s=>`<div>• ${escapeHtml(s)}</div>`).join('')}</div>`:''}
+      `;
+    }
+    modal.classList.remove('hidden');
+  }
+  $('#modalClose').addEventListener('click', () => $('#modalBg').classList.add('hidden'));
+  $('#modalBg').addEventListener('click', (e) => { if (e.target.id === 'modalBg') $('#modalBg').classList.add('hidden'); });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- Settings ----------
+  function renderSettings() {
+    $('#apiKeyInput').value = loadKey();
+    $('#goalProtein').value = goals.protein;
+    $('#goalDeep').value = goals.deep;
+    $('#goalSleep').value = goals.sleep;
+    $('#keyMsg').textContent = '';
+    $('#goalsMsg').textContent = '';
+  }
+  $('#saveKey').addEventListener('click', () => {
+    const v = $('#apiKeyInput').value.trim();
+    saveKey(v);
+    $('#keyMsg').textContent = v ? 'Gespeichert.' : 'Key gelöscht.';
+  });
+  $('#toggleKeyVis').addEventListener('click', () => {
+    const inp = $('#apiKeyInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    $('#toggleKeyVis').textContent = inp.type === 'password' ? 'Anzeigen' : 'Verstecken';
+  });
+  $('#saveGoals').addEventListener('click', () => {
+    const p = parseFloat($('#goalProtein').value);
+    const d = parseFloat($('#goalDeep').value);
+    const s = parseFloat($('#goalSleep').value);
+    if ([p,d,s].some(x => !isFinite(x) || x <= 0)) {
+      $('#goalsMsg').textContent = 'Ungültige Werte.';
+      $('#goalsMsg').style.color = 'var(--bad)';
+      return;
+    }
+    goals = { protein: p, deep: d, sleep: s };
+    saveGoals(goals);
+    $('#goalsMsg').textContent = 'Ziele gespeichert.';
+    $('#goalsMsg').style.color = 'var(--good)';
+    renderToday();
+  });
+  $('#exportBtn').addEventListener('click', () => {
+    const out = { exportedAt: new Date().toISOString(), goals, days: {} };
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('day:')) {
+        try { out.days[k.slice(4)] = JSON.parse(localStorage.getItem(k)); } catch {}
+      }
+    }
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `productivity-${todayKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+  $('#resetBtn').addEventListener('click', () => {
+    if (!confirm('Wirklich ALLE Daten löschen? (API Key bleibt erhalten)')) return;
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('day:') || k === LS_GOALS)) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+    goals = loadGoals();
+    day = {
+      date: today, gym:false, protein:0, deep:0, sleep:0,
+      wins:['','',''], slips:['','',''], score:null, feedback:null, tomorrow:null, ratedAt:null
+    };
+    renderToday();
+    renderSettings();
+    alert('Daten zurückgesetzt.');
+  });
+
+  // ---------- Init ----------
+  renderToday();
+  $('#streakPill').textContent = `Streak ${computeStreak()}`;
+})();
+</script>
+</body>
+</html>
