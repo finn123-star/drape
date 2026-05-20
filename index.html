@@ -111,11 +111,12 @@ header h1{font-size:22px;font-weight:800;letter-spacing:-.4px}
 .prog>i.blue{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
 
 /* inputs */
-input[type=text],input[type=password],input[type=number],textarea{
+input[type=text],input[type=password],input[type=number],input[type=time],textarea{
   width:100%;background:rgba(255,255,255,.06);border:1px solid var(--gb);
   color:var(--txt);border-radius:12px;padding:10px 14px;
   font-size:14px;font-family:inherit;outline:none;transition:border-color .15s;
 }
+input[type=time]{color-scheme:dark;font-variant-numeric:tabular-nums;text-align:center;font-weight:600}
 input:focus,textarea:focus{border-color:rgba(139,92,246,.5)}
 textarea{resize:vertical;min-height:70px}
 
@@ -269,10 +270,30 @@ hr{border:0;border-top:1px solid var(--gb);margin:16px 0}
           <div class="label">Gym</div>
           <span class="prio" data-metric="gym" data-lv="2">★★ Wichtig</span>
         </div>
-        <div class="sub">War ich heute trainieren?</div>
+        <div class="sub">Heute trainiert? · Diese Woche: <span id="gymWeekCount">0</span>/<span id="lGymWeekly">4</span></div>
       </div>
       <div class="toggle" id="gymToggle"><div class="knob"></div></div>
     </div>
+    <div class="prog"><i id="bGymWeek" class="green" style="width:0%"></i></div>
+  </div>
+
+  <!-- Meditation -->
+  <div class="card">
+    <div class="row">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="label">Meditation</div>
+          <span class="prio" data-metric="meditation" data-lv="2">★★ Wichtig</span>
+        </div>
+        <div class="sub">Ziel <span id="lMeditation">10</span> min</div>
+      </div>
+      <div class="ctrl">
+        <button data-act="meditation" data-d="-5">−</button>
+        <div class="val"><span id="vMeditation">0</span> min</div>
+        <button data-act="meditation" data-d="5">+</button>
+      </div>
+    </div>
+    <div class="prog"><i id="bMeditation" class="purple" style="width:0%"></i></div>
   </div>
 
   <!-- Protein -->
@@ -330,6 +351,31 @@ hr{border:0;border-top:1px solid var(--gb);margin:16px 0}
       </div>
     </div>
     <div class="prog"><i id="bSleep" class="blue" style="width:0%"></i></div>
+  </div>
+
+  <!-- Schlafenszeiten -->
+  <div class="card">
+    <div class="section-title">Schlafenszeiten</div>
+    <div class="row">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="label" style="font-size:14px">Ins Bett gestern</div>
+          <span class="prio" data-metric="bedtime" data-lv="1">★ Normal</span>
+        </div>
+        <div class="sub">Ziel <span id="lBedtime">23:00</span></div>
+      </div>
+      <input type="time" id="bedtimeInput" style="width:120px">
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="label" style="font-size:14px">Aufgestanden heute</div>
+          <span class="prio" data-metric="waketime" data-lv="1">★ Normal</span>
+        </div>
+        <div class="sub">Ziel <span id="lWaketime">06:30</span></div>
+      </div>
+      <input type="time" id="waketimeInput" style="width:120px">
+    </div>
   </div>
 
   <!-- Focus -->
@@ -461,6 +507,10 @@ hr{border:0;border-top:1px solid var(--gb);margin:16px 0}
       <span>Deep Work (h)</span><input type="number" id="goalDeep" step="0.5" min="0">
       <span>Schlaf (h)</span><input type="number" id="goalSleep" step="0.5" min="0">
       <span>Fokus-Sessions</span><input type="number" id="goalFocus" step="1" min="0">
+      <span>Meditation (min)</span><input type="number" id="goalMeditation" step="5" min="0">
+      <span>Gym (Tage/Woche)</span><input type="number" id="goalGymWeekly" step="1" min="0" max="7">
+      <span>Bettzeit</span><input type="time" id="goalBedtime">
+      <span>Aufstehzeit</span><input type="time" id="goalWaketime">
     </div>
     <button class="btn sm" id="saveGoals" style="margin-top:12px">Speichern</button>
     <div id="goalsMsg" class="ok"></div>
@@ -513,8 +563,8 @@ const K_GOALS = 'pt:goals';
 const K_PRIOS = 'pt:prios';
 const K_HDEF  = 'pt:habitsDef';
 
-const DEF_GOALS = {protein:150,deep:3,sleep:7.5,focus:4};
-const DEF_PRIOS = {gym:2,protein:2,deep:3,sleep:2,focus:2,habits:1};
+const DEF_GOALS = {protein:150,deep:3,sleep:7.5,focus:4,meditation:10,gymWeekly:4,bedtime:'23:00',waketime:'06:30'};
+const DEF_PRIOS = {gym:2,protein:2,deep:3,sleep:2,focus:2,habits:1,meditation:2,bedtime:1,waketime:1};
 const P_STAR    = {1:'★',2:'★★',3:'★★★'};
 const P_LBL     = {1:'Normal',2:'Wichtig',3:'Kritisch'};
 
@@ -566,7 +616,8 @@ let prios      = {...DEF_PRIOS,...(ls(K_PRIOS)||{})};
 let habitsDef  = ls(K_HDEF) || [];
 
 function blankDay() {
-  return {date:TODAY,gym:false,protein:0,deep:0,sleep:0,focus:0,
+  return {date:TODAY,gym:false,protein:0,deep:0,sleep:0,focus:0,meditation:0,
+          bedtime:'',waketime:'',
           wins:['','',''],slips:['','',''],habits:{},
           score:null,feedback:null,tomorrow:null,ratedAt:null,autoScore:null};
 }
@@ -581,14 +632,51 @@ function persistWeek() { saveWeek(WEEK,weekData); }
 function persistTodayPlan() { savePlan(TODAY,todayPlan); }
 
 // ── auto-score ────────────────────────────────────────────────────────
+function gymWeekCount() {
+  const [y,w]=WEEK.split('-W').map(Number);
+  const j4=new Date(y,0,4);
+  const mon=new Date(j4); mon.setDate(j4.getDate()-((j4.getDay()+6)%7)+(w-1)*7);
+  const now=new Date();
+  let c=0;
+  for(let i=0;i<7;i++){
+    const d=new Date(mon); d.setDate(mon.getDate()+i);
+    if(d>now) break;
+    const rec=loadDay(todayStr(d));
+    if(rec&&rec.gym) c++;
+  }
+  return c;
+}
+function timeToMin(t) {
+  if (!t || !/^\d{2}:\d{2}$/.test(t)) return null;
+  const [h,m]=t.split(':').map(Number);
+  return h*60+m;
+}
+function timeScore(actual, target) {
+  const a=timeToMin(actual), b=timeToMin(target);
+  if (a==null||b==null) return null;
+  // wrap diff (e.g. 23:30 vs 00:30 = 60 min)
+  let diff=Math.abs(a-b);
+  if (diff>720) diff=1440-diff;
+  return Math.max(0, 1 - diff/90); // 90 min off = 0
+}
+
 function autoScore() {
   let tw=0,ts=0;
-  function add(w,s01){ tw+=w; ts+=w*clamp(s01,0,1); }
-  add(prios.gym,     day.gym?1:0);
-  add(prios.protein, goals.protein?day.protein/goals.protein:0);
-  add(prios.deep,    goals.deep   ?day.deep/goals.deep:0);
-  add(prios.sleep,   goals.sleep  ?day.sleep/goals.sleep:0);
-  add(prios.focus,   goals.focus  ?day.focus/goals.focus:0);
+  function add(w,s01){ if(s01==null)return; tw+=w; ts+=w*clamp(s01,0,1); }
+
+  // Gym: weekly target. If you went today: full. Else: weekly progress so far.
+  const weekN = gymWeekCount();
+  const weeklyProgress = goals.gymWeekly ? Math.min(1, weekN/goals.gymWeekly) : 0;
+  add(prios.gym, day.gym ? 1 : weeklyProgress);
+
+  add(prios.protein,    goals.protein   ? day.protein/goals.protein       : null);
+  add(prios.deep,       goals.deep      ? day.deep/goals.deep             : null);
+  add(prios.sleep,      goals.sleep     ? day.sleep/goals.sleep           : null);
+  add(prios.focus,      goals.focus     ? day.focus/goals.focus           : null);
+  add(prios.meditation, goals.meditation? day.meditation/goals.meditation : null);
+  add(prios.bedtime,    timeScore(day.bedtime,  goals.bedtime));
+  add(prios.waketime,   timeScore(day.waketime, goals.waketime));
+
   if (habitsDef.length) {
     const done=habitsDef.filter(h=>day.habits[h.id]).length;
     add(prios.habits, done/habitsDef.length);
@@ -598,7 +686,7 @@ function autoScore() {
     add(2, done/todayPlan.goals.length);
   }
   if (!tw) return null;
-  return Math.round((ts/tw)*100)/10; // one decimal, 0–10
+  return Math.round((ts/tw)*100)/10;
 }
 
 // ── render today ──────────────────────────────────────────────────────
@@ -631,18 +719,33 @@ function renderToday() {
   });
 
   // numerics
-  $('#lProtein').textContent=fmt(goals.protein);
-  $('#lDeep').textContent   =fmt(goals.deep);
-  $('#lSleep').textContent  =fmt(goals.sleep);
-  $('#lFocus').textContent  =fmt(goals.focus);
-  $('#vProtein').textContent=fmt(day.protein);
-  $('#vDeep').textContent   =fmt(day.deep);
-  $('#vSleep').textContent  =fmt(day.sleep);
-  $('#vFocus').textContent  =fmt(day.focus);
-  $('#bProtein').style.width=Math.min(100,goals.protein?(day.protein/goals.protein)*100:0)+'%';
-  $('#bDeep').style.width   =Math.min(100,goals.deep?   (day.deep/goals.deep)*100:0)+'%';
-  $('#bSleep').style.width  =Math.min(100,goals.sleep?  (day.sleep/goals.sleep)*100:0)+'%';
-  $('#bFocus').style.width  =Math.min(100,goals.focus?  (day.focus/goals.focus)*100:0)+'%';
+  $('#lProtein').textContent   =fmt(goals.protein);
+  $('#lDeep').textContent      =fmt(goals.deep);
+  $('#lSleep').textContent     =fmt(goals.sleep);
+  $('#lFocus').textContent     =fmt(goals.focus);
+  $('#lMeditation').textContent=fmt(goals.meditation);
+  $('#lGymWeekly').textContent =fmt(goals.gymWeekly);
+  $('#lBedtime').textContent   =goals.bedtime||'–';
+  $('#lWaketime').textContent  =goals.waketime||'–';
+  $('#vProtein').textContent   =fmt(day.protein);
+  $('#vDeep').textContent      =fmt(day.deep);
+  $('#vSleep').textContent     =fmt(day.sleep);
+  $('#vFocus').textContent     =fmt(day.focus);
+  $('#vMeditation').textContent=fmt(day.meditation);
+  $('#bProtein').style.width   =Math.min(100,goals.protein?(day.protein/goals.protein)*100:0)+'%';
+  $('#bDeep').style.width      =Math.min(100,goals.deep?   (day.deep/goals.deep)*100:0)+'%';
+  $('#bSleep').style.width     =Math.min(100,goals.sleep?  (day.sleep/goals.sleep)*100:0)+'%';
+  $('#bFocus').style.width     =Math.min(100,goals.focus?  (day.focus/goals.focus)*100:0)+'%';
+  $('#bMeditation').style.width=Math.min(100,goals.meditation?(day.meditation/goals.meditation)*100:0)+'%';
+
+  // gym weekly
+  const weekN=gymWeekCount();
+  $('#gymWeekCount').textContent=weekN;
+  $('#bGymWeek').style.width=Math.min(100,goals.gymWeekly?(weekN/goals.gymWeekly)*100:0)+'%';
+
+  // bedtime / waketime inputs
+  const bIn=$('#bedtimeInput'); if(bIn&&bIn!==document.activeElement) bIn.value=day.bedtime||'';
+  const wIn=$('#waketimeInput'); if(wIn&&wIn!==document.activeElement) wIn.value=day.waketime||'';
 
   // wins/slips
   for(let i=0;i<3;i++){
@@ -768,13 +871,17 @@ function renderSettings() {
   $('#goalDeep').value=goals.deep;
   $('#goalSleep').value=goals.sleep;
   $('#goalFocus').value=goals.focus;
+  $('#goalMeditation').value=goals.meditation;
+  $('#goalGymWeekly').value=goals.gymWeekly;
+  $('#goalBedtime').value=goals.bedtime;
+  $('#goalWaketime').value=goals.waketime;
   $('#keyMsg').textContent='';
   $('#goalsMsg').textContent='';
 
   // prio
   const ps=$('#prioSettings');
   ps.innerHTML='';
-  [['gym','Gym'],['protein','Protein'],['deep','Deep Work'],['sleep','Schlaf'],['focus','Fokus-Sessions'],['habits','Habits']].forEach(([k,lbl])=>{
+  [['gym','Gym'],['protein','Protein'],['deep','Deep Work'],['sleep','Schlaf'],['focus','Fokus-Sessions'],['meditation','Meditation'],['bedtime','Bettzeit'],['waketime','Aufstehzeit'],['habits','Habits']].forEach(([k,lbl])=>{
     const lv=prios[k]||1;
     const row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px';
@@ -824,9 +931,12 @@ function openModal(dt) {
       <hr>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:14px">
         <div class="k">Gym</div><div>${rec.gym?'✓ Ja':'✗ Nein'}</div>
+        <div class="k">Meditation</div><div>${fmt(rec.meditation||0)} min</div>
         <div class="k">Protein</div><div>${fmt(rec.protein||0)} g</div>
         <div class="k">Deep Work</div><div>${fmt(rec.deep||0)} h</div>
         <div class="k">Schlaf</div><div>${fmt(rec.sleep||0)} h</div>
+        <div class="k">Ins Bett</div><div>${rec.bedtime||'–'}</div>
+        <div class="k">Aufgestanden</div><div>${rec.waketime||'–'}</div>
         <div class="k">Fokus</div><div>${fmt(rec.focus||0)} Sessions</div>
       </div>
       ${wins.length?`<div style="margin-top:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin-bottom:6px">Wins</div>${wins.map(w=>`<div style="font-size:14px;margin-bottom:3px">• ${esc(w)}</div>`).join('')}</div>`:''}
@@ -867,12 +977,16 @@ $('#gymToggle').onclick=()=>{ day.gym=!day.gym; persistDay(); renderToday(); };
 
 $$('button[data-act]').forEach(btn=>btn.onclick=()=>{
   const act=btn.dataset.act, d=parseFloat(btn.dataset.d);
-  if(act==='protein') day.protein=clamp(Math.round(day.protein+d),0,2000);
-  if(act==='deep')    day.deep=clamp(Math.round((day.deep+d)*2)/2,0,24);
-  if(act==='sleep')   day.sleep=clamp(Math.round((day.sleep+d)*2)/2,0,24);
-  if(act==='focus')   day.focus=clamp(day.focus+d,0,99);
+  if(act==='protein')    day.protein   =clamp(Math.round(day.protein+d),0,2000);
+  if(act==='deep')       day.deep      =clamp(Math.round((day.deep+d)*2)/2,0,24);
+  if(act==='sleep')      day.sleep     =clamp(Math.round((day.sleep+d)*2)/2,0,24);
+  if(act==='focus')      day.focus     =clamp(day.focus+d,0,99);
+  if(act==='meditation') day.meditation=clamp(day.meditation+d,0,600);
   persistDay(); renderToday();
 });
+
+$('#bedtimeInput').oninput=e=>{ day.bedtime=e.target.value; persistDay(); renderToday(); };
+$('#waketimeInput').oninput=e=>{ day.waketime=e.target.value; persistDay(); renderToday(); };
 
 $$('input[data-field]').forEach(inp=>inp.oninput=()=>{
   const m=inp.dataset.field.match(/^(win|slip)(\d)$/);
@@ -930,13 +1044,17 @@ function buildPrompt(as) {
   const openH=habitsDef.filter(h=>!day.habits[h.id]).map(h=>h.name);
   const doneG=(todayPlan.goals||[]).filter(g=>g.done).map(g=>g.text);
   const openG=(todayPlan.goals||[]).filter(g=>!g.done).map(g=>g.text);
+  const weekN=gymWeekCount();
   return [
     `Datum: ${TODAY}`,``,
     `Tracking (Gewichtung in Klammern):`,
-    `- Gym: ${day.gym?'ja':'nein'} [${PLBL[prios.gym]}]`,
+    `- Gym heute: ${day.gym?'ja':'nein'} · Woche: ${weekN}/${fmt(goals.gymWeekly)} Tage [${PLBL[prios.gym]}]`,
+    `- Meditation: ${fmt(day.meditation)}/${fmt(goals.meditation)} min [${PLBL[prios.meditation]}]`,
     `- Protein: ${fmt(day.protein)}/${fmt(goals.protein)} g [${PLBL[prios.protein]}]`,
     `- Deep Work: ${fmt(day.deep)}/${fmt(goals.deep)} h [${PLBL[prios.deep]}]`,
     `- Schlaf: ${fmt(day.sleep)}/${fmt(goals.sleep)} h [${PLBL[prios.sleep]}]`,
+    `- Ins Bett gestern: ${day.bedtime||'–'} (Ziel ${goals.bedtime}) [${PLBL[prios.bedtime]}]`,
+    `- Aufgestanden heute: ${day.waketime||'–'} (Ziel ${goals.waketime}) [${PLBL[prios.waketime]}]`,
     `- Fokus-Sessions: ${fmt(day.focus)}/${fmt(goals.focus)} [${PLBL[prios.focus]}]`,``,
     doneH.length?`Habits erledigt: ${doneH.join(', ')}`:'',
     openH.length?`Habits offen: ${openH.join(', ')}`:'',
@@ -980,9 +1098,20 @@ $('#toggleKeyVis').onclick=()=>{
   $('#toggleKeyVis').textContent=inp.type==='password'?'Anzeigen':'Verstecken';
 };
 $('#saveGoals').onclick=()=>{
-  const vals={protein:parseFloat($('#goalProtein').value),deep:parseFloat($('#goalDeep').value),sleep:parseFloat($('#goalSleep').value),focus:parseFloat($('#goalFocus').value)};
-  if(Object.values(vals).some(v=>!isFinite(v)||v<=0)){ $('#goalsMsg').textContent='Ungültige Werte.'; $('#goalsMsg').style.color='var(--bad)'; return; }
-  goals=vals; lsSet(K_GOALS,goals);
+  const nums={
+    protein:parseFloat($('#goalProtein').value),
+    deep:parseFloat($('#goalDeep').value),
+    sleep:parseFloat($('#goalSleep').value),
+    focus:parseFloat($('#goalFocus').value),
+    meditation:parseFloat($('#goalMeditation').value),
+    gymWeekly:parseFloat($('#goalGymWeekly').value)
+  };
+  if(Object.values(nums).some(v=>!isFinite(v)||v<0)){
+    $('#goalsMsg').textContent='Ungültige Werte.';$('#goalsMsg').style.color='var(--bad)';return;
+  }
+  const bedtime=$('#goalBedtime').value||'23:00';
+  const waketime=$('#goalWaketime').value||'06:30';
+  goals={...nums,bedtime,waketime}; lsSet(K_GOALS,goals);
   $('#goalsMsg').textContent='Gespeichert.'; $('#goalsMsg').style.color='var(--good)';
   renderToday();
 };
