@@ -348,7 +348,7 @@ hr{border:0;border-top:1px solid var(--gb);margin:16px 0}
     <span class="mic">🎤</span>
     <div style="text-align:left">
       <div>Tag einsprechen</div>
-      <span class="sub">alles auf einmal, Claude füllt aus</span>
+      <span class="sub">alles auf einmal, wird automatisch erkannt</span>
     </div>
   </button>
 
@@ -556,15 +556,15 @@ hr{border:0;border-top:1px solid var(--gb);margin:16px 0}
     </div>
   </div>
 
-  <button id="rateBtn" class="btn primary block">Tag bewerten (KI)</button>
+  <button id="rateBtn" class="btn primary block">Tag bewerten</button>
   <div id="rateErr" class="err"></div>
 
   <!-- Result -->
   <div id="resultCard" class="card glow hidden" style="margin-top:14px">
-    <div class="section-title">KI-Bewertung</div>
+    <div class="section-title">Bewertung</div>
     <div style="display:flex;align-items:center;gap:28px;margin-bottom:16px;flex-wrap:wrap">
       <div>
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin-bottom:4px">KI Score</div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin-bottom:4px">Score</div>
         <div class="big-score" id="kiScoreN">–</div>
         <div style="color:var(--mut);font-size:12px">/10</div>
       </div>
@@ -619,9 +619,9 @@ hr{border:0;border-top:1px solid var(--gb);margin:16px 0}
 <section id="tab-settings" class="hidden">
 
   <div class="card">
-    <div class="label">API Key</div>
+    <div class="label">API Key <span style="font-weight:400;color:var(--mut);font-size:13px">(optional)</span></div>
     <div class="sub" style="margin-bottom:12px">
-      Hol dir einen unter <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> → API Keys. Wird nur lokal gespeichert.
+      Ohne Key läuft alles lokal & kostenlos (Score, Feedback, Voice). Mit Key gibt's smartere KI-Bewertung von Claude — kostenpflichtig über <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>. Wird nur lokal gespeichert.
     </div>
     <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     <div class="flex gap8 mt8">
@@ -1198,7 +1198,6 @@ $('#voiceCancel').onclick = () => {
 
 $('#voiceStart').onclick = () => {
   if (!SR) { $('#voiceError').textContent='Spracheingabe nicht unterstützt. Nutze Chrome, Edge oder Safari.'; return; }
-  if (!localStorage.getItem(K_KEY)) { $('#voiceError').textContent='Kein API Key in Settings.'; return; }
   $('#voiceError').textContent='';
   voiceFinal=''; voiceInterim='';
   recogn = new SR();
@@ -1230,10 +1229,11 @@ $('#voiceStop').onclick = async () => {
   if(recogn){ try{recogn.stop();}catch{} }
   const text = (voiceFinal + ' ' + voiceInterim).trim();
   if(!text){ $('#voiceError').textContent='Kein Text erkannt.'; return; }
-  $('#voiceState').textContent='⏳ Claude analysiert...';
   $('#voiceStop').disabled=true;
   try{
-    const updates = await parseVoice(text);
+    let updates;
+    if (hasKey()) { $('#voiceState').textContent='⏳ Claude analysiert...'; updates = await parseVoice(text); }
+    else          { $('#voiceState').textContent='⏳ Werte erkennen...';   updates = localParseVoice(text); }
     if (updates) {
       applyVoiceUpdates(updates);
       const miss=missingFields();
@@ -1338,8 +1338,14 @@ function applyVoiceUpdates(u){
 $('#rateBtn').onclick=async()=>{
   const err=$('#rateErr'), btn=$('#rateBtn');
   err.textContent='';
+  if(!hasKey()){
+    const r=localRate();
+    day.score=r.score; day.feedback=r.feedback; day.tomorrow=r.tomorrow;
+    day.ratedAt=new Date().toISOString();
+    persistDay(); renderToday();
+    return;
+  }
   const key=localStorage.getItem(K_KEY);
-  if(!key){ err.textContent='Kein API Key – geh in Settings.'; return; }
   btn.disabled=true; btn.textContent='⏳ Bewertet...';
   try {
     const as=autoScore();
@@ -1366,7 +1372,7 @@ $('#rateBtn').onclick=async()=>{
     day.ratedAt=new Date().toISOString();
     persistDay(); renderToday();
   } catch(e){ err.textContent='Fehler: '+(e.message||e); }
-  finally { btn.disabled=false; btn.textContent='Tag bewerten (KI)'; }
+  finally { btn.disabled=false; btn.textContent='Tag bewerten'; }
 };
 
 function buildPrompt(as) {
@@ -1407,6 +1413,103 @@ function parseJson(s){
   const m=s.match(/\{[\s\S]*\}/);
   if(m){try{return JSON.parse(m[0]);}catch{}}
   return null;
+}
+
+// ── local (kostenlos, ohne API) ───────────────────────────────────────
+function hasKey(){ return !!localStorage.getItem(K_KEY); }
+
+function localRate(){
+  const as=autoScore();
+  const score = as==null ? 5 : clamp(Math.round(as),1,10);
+  const good=[], bad=[];
+
+  if (goals.deep && day.deep>=goals.deep) good.push('Deep Work voll durchgezogen');
+  else if (day.deep===0) bad.push('null Deep Work – und das ist deine wichtigste Metrik');
+  else bad.push(`Deep Work nur ${fmt(day.deep)}/${fmt(goals.deep)}h`);
+
+  if (day.gym) good.push('Gym gemacht');
+  else if (gymWeekCount()<goals.gymWeekly) bad.push(`Gym erst ${gymWeekCount()}/${fmt(goals.gymWeekly)} diese Woche`);
+
+  if (goals.protein && day.protein>=goals.protein) good.push('Proteinziel geknackt');
+  else if (day.protein < goals.protein*0.5) bad.push(`Protein schwach (${fmt(day.protein)}g)`);
+
+  if (goals.sleep && day.sleep>=goals.sleep) good.push('ausgeschlafen');
+  else if (day.sleep>0 && day.sleep<goals.sleep-1) bad.push(`zu wenig Schlaf (${fmt(day.sleep)}h)`);
+
+  if (goals.water && day.water>=goals.water) good.push('genug getrunken');
+  else if (goals.water && day.water<goals.water*0.5) bad.push('kaum Wasser getrunken');
+
+  if (day.meditation) good.push('meditiert');
+
+  if (habitsDef.length){
+    const done=habitsDef.filter(h=>day.habits[h.id]).length;
+    if (done===habitsDef.length) good.push('alle Habits abgehakt');
+    else if (done===0) bad.push('keinen einzigen Habit gemacht');
+  }
+  if (todayPlan.goals.length){
+    const open=todayPlan.goals.filter(g=>!g.done).length;
+    if (open) bad.push(`${open} Tagesziel${open>1?'e':''} offen`);
+  }
+
+  let fb;
+  if (score>=8)      fb=`Starker Tag. ${good.slice(0,3).join(', ')||'sauber durchgezogen'}.`;
+  else if (score>=5) fb=`Mittelmaß. ${good[0]?good[0]+', aber ':''}${bad[0]||'da geht mehr'}${bad[1]?' und '+bad[1]:''}.`;
+  else               fb=`Schwacher Tag, kein Schönreden. ${bad.slice(0,3).join(', ')||'kaum etwas erreicht'}.`;
+
+  let tomorrow;
+  if (day.deep<goals.deep)                                   tomorrow=`Block dir morgen ${fmt(goals.deep)}h Deep Work fest ein, bevor irgendwas anderes läuft.`;
+  else if (day.sleep && day.sleep<goals.sleep)               tomorrow=`Geh früher ins Bett – Ziel ${fmt(goals.sleep)}h Schlaf.`;
+  else if (day.protein<goals.protein)                        tomorrow=`Plan deine Mahlzeiten für ${fmt(goals.protein)}g Protein.`;
+  else if (!day.gym && gymWeekCount()<goals.gymWeekly)       tomorrow='Geh morgen ins Gym, du hinkst dem Wochenziel hinterher.';
+  else                                                       tomorrow='Halt das Level und zieh deine wichtigste Aufgabe zuerst durch.';
+
+  return {score, feedback:fb, tomorrow};
+}
+
+// local voice parsing (Mustererkennung, kein API)
+const NUMWORD={'eins':1,'ein':1,'eine':1,'zwei':2,'zwo':2,'drei':3,'vier':4,'fünf':5,'fuenf':5,'sechs':6,'sieben':7,'acht':8,'neun':9,'zehn':10,'elf':11,'zwölf':12,'zwoelf':12};
+function w2n(w){ return NUMWORD[w]!=null?NUMWORD[w]:(/^\d+$/.test(w)?+w:null); }
+function parseTimeFrom(seg){
+  if(!seg) return null;
+  let m;
+  m=seg.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);              if(m) return pad(+m[1])+':'+m[2];
+  m=seg.match(/\b([01]?\d|2[0-3])\s*uhr\s*([0-5]?\d)\b/);        if(m) return pad(+m[1])+':'+pad(+m[2]);
+  m=seg.match(/\b([01]?\d|2[0-3])\s*uhr\b/);                     if(m) return pad(+m[1])+':00';
+  m=seg.match(/viertel\s+nach\s+(\w+)/);                         if(m){const h=w2n(m[1]); if(h!=null) return pad(h)+':15';}
+  m=seg.match(/(?:viertel\s+vor|dreiviertel)\s+(\w+)/);          if(m){const h=w2n(m[1]); if(h!=null) return pad((h+23)%24)+':45';}
+  m=seg.match(/halb\s+(\w+)/);                                   if(m){const h=w2n(m[1]); if(h!=null) return pad((h+23)%24)+':30';}
+  return null;
+}
+function localParseVoice(text){
+  const t=' '+text.toLowerCase().replace(/,/g,' ')+' ';
+  const u={};
+  if (/\bnicht\s+(im\s+)?(gym|trainiert)/.test(t)) u.gym=false;
+  else if (/\b(gym|trainiert|trainieren|workout|sport|fitness)\b/.test(t)) u.gym=true;
+  if (/\bnicht\s+medit/.test(t)) u.meditation=false;
+  else if (/medit/.test(t)) u.meditation=true;
+
+  let m;
+  m=t.match(/(\d+)\s*(?:g|gramm)?\s*(?:protein|eiwei)/) || t.match(/(?:protein|eiwei)\w*\s*(?:von|war|sind|:)?\s*(\d+)/);
+  if(m) u.protein=parseInt(m[1]);
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*(?:stunden?|std|h)\s*(?:deep\s*work|deep|fokus|konzentriert|gearbeitet|arbeit)/) || t.match(/(?:deep\s*work|deepwork|fokus)\w*\s*(?:von|war|:)?\s*(\d+(?:[.,]\d+)?)/);
+  if(m) u.deep=parseFloat(m[1].replace(',','.'));
+  m=t.match(/(\d+(?:[.,]\d+)?)\s*(?:stunden?|std|h)\s*(?:geschlafen|schlaf)/) || t.match(/(?:geschlafen|schlaf)\w*\s*(?:von|war|:)?\s*(\d+(?:[.,]\d+)?)/);
+  if(m) u.sleep=parseFloat(m[1].replace(',','.'));
+  m=t.match(/(\d+)\s*(?:gläser|glas|gl[aä]sern)/) || t.match(/(?:wasser)\w*\s*(?:von|war|:)?\s*(\d+)/);
+  if(m) u.water=parseInt(m[1]);
+
+  if      (/(super|großartig|grossartig|fantastisch|spitze|top drauf|hervorragend)/.test(t)) u.mood=5;
+  else if (/(gut drauf|gute laune|gut gefühlt|\bgut\b)/.test(t)) u.mood=4;
+  else if (/(okay|\bok\b|geht so|mittel|durchschnitt)/.test(t)) u.mood=3;
+  else if (/(mies|nicht gut|müde|kaputt|schlecht drauf)/.test(t)) u.mood=2;
+  else if (/(beschissen|grottig|furchtbar|am boden|schlecht\b)/.test(t)) u.mood=1;
+
+  const bm=t.match(/(?:ins?\s+bett|schlafen\s+gegangen|hingelegt)[^.]*/);
+  if(bm){ const tm=parseTimeFrom(bm[0]); if(tm) u.bedtime=tm; }
+  const wm=t.match(/(?:aufgestanden|aufgewacht|wach geworden|raus aus dem bett)[^.]*/);
+  if(wm){ const tm=parseTimeFrom(wm[0]); if(tm) u.waketime=tm; }
+
+  return u;
 }
 
 // ── events: plan ──────────────────────────────────────────────────────
